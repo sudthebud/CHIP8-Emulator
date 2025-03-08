@@ -19,6 +19,10 @@ class Chip8 {
         uint32_t display[64 * 32]{}; //Current pixel display values
 
         uint16_t opcode;
+
+
+        std::default_random_engine randGen; //Random number generator seeded by the clock
+        std::uniform_int_distribution<uint8_t> randByte; //Uniform distribution of integer range
 };
 
 
@@ -60,9 +64,15 @@ void Chip8::loadROM(char const* fileName) {
 
 
 
+#include <chrono>
+#include <random>
+
 //CHIP8 constructor which sets the program counter register to the first instruction address,
 //which is where the memory where the program is stored starts
-Chip8::Chip8() {
+Chip8::Chip8()
+    : randGen(std::chrono::system_clock::now().time_since_epoch().count()),
+      randByte(std::uniform_int_distribution<uint8_t>(0, 255))
+{
 
     programCounter = START_ADDRESS;
 
