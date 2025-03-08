@@ -28,7 +28,7 @@ class Chip8 {
 
 const unsigned int START_ADDRESS = 0x200; //Starting address of the memory where the ROM file is stored
 
-//Reads contents of a ROM file and loads it into memory
+//CHIP8 method which reads contents of a ROM file and loads it into memory
 void Chip8::loadROM(char const* fileName) {
 
     //Creates file object from file name
@@ -55,4 +55,50 @@ void Chip8::loadROM(char const* fileName) {
 
     }
 
+}
+
+
+
+
+//CHIP8 constructor which sets the program counter register to the first instruction address,
+//which is where the memory where the program is stored starts
+Chip8::Chip8() {
+
+    programCounter = START_ADDRESS;
+
+    for (int i = 0; i < sizeof(FONTSET); ++i) {
+        memory[FONT_ADDRESS + i] = FONTSET[i];
+    }
+
+}
+
+
+
+
+//Font characters for the CHIP8 emulator
+//CHIP8 uses built in font sprites, and font sprites are represented as 1s and 0s in a 5x5
+//grid, where 1 is a pixel on the screen to display
+//We condense these 5x5 1s and 0s into 5 bytes (byte = 8 bits), one for each row of 1s and 0s
+const unsigned int NUM_FONT_CHARACTERS = 16;
+
+const unsigned int FONT_ADDRESS = 0x50;
+
+uint8_t FONTSET[NUM_FONT_CHARACTERS * 5] = 
+{
+	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+	0x20, 0x60, 0x20, 0x20, 0x70, // 1
+	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+	0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+	0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+	0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+	0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+	0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+	0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+	0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+	0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+	0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+	0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+	0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+	0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 }
