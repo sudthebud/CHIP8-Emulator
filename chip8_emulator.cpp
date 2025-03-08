@@ -26,16 +26,32 @@ class Chip8 {
 
 #include <fstream>
 
-const unsigned int START_ADDRESS = 0x200;
+const unsigned int START_ADDRESS = 0x200; //Starting address of the memory where the ROM file is stored
 
 //Reads contents of a ROM file and loads it into memory
 void Chip8::loadROM(char const* fileName) {
 
+    //Creates file object from file name
+    //Created as a stream of binary and moving pointer at the end of file
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
 
     if (file.is_open()) {
 
+        //Finds file size by getting current position of the file
+        //Then creates an array of that size which will hold the ROM contents
         std::streampos fileSize = file.tellg();
+        char* buffer = new char[fileSize];
+
+        //Moves pointer to beginning of file
+        //Saves file contents to buffer array
+        file.seekg(0, std::ios::beg);
+        file.read(buffer, size);
+        file.close();
+
+        //Loads file contents into CHIP8 memory
+        for (int i = 0; i < size; ++i) {
+            memory[START_ADDRESS + i] = buffer[i];
+        }
 
     }
 
