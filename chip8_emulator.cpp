@@ -6,7 +6,7 @@ class Chip8 {
         uint8_t registers[16]{}; //The registers with which the CPU will perform its operations
         uint8_t memory[4096]{}; //4kb of memory for the computer
         uint16_t indexRegister{}; //The register for memory spaces for operations performed by the CPU
-        uint16_t programCounter{}; //The register for the address of the next instruction
+        uint16_t programCounter{}; //The register for the ADDRESS of the next instruction
 
         uint16_t stack[16]{}; //The stack of memory instructions to return to upon RET calls
         uint8_t stackPointer{}; //The current index of the stack
@@ -18,7 +18,7 @@ class Chip8 {
         
         uint32_t display[64 * 32]{}; //Current pixel display values
 
-        uint16_t opcode;
+        uint16_t opcode; //The actual instruction we are currently looking at
 
 
         std::default_random_engine randGen; //Random number generator seeded by the clock
@@ -71,7 +71,7 @@ void Chip8::loadROM(char const* fileName) {
 //which is where the memory where the program is stored starts
 Chip8::Chip8()
     : randGen(std::chrono::system_clock::now().time_since_epoch().count()),
-      randByte(std::uniform_int_distribution<uint8_t>(0, 255))
+      randByte(std::uniform_int_distribution<uint8_t>(0, 255U))
 {
 
     programCounter = START_ADDRESS;
@@ -111,4 +111,51 @@ uint8_t FONTSET[NUM_FONT_CHARACTERS * 5] =
 	0xE0, 0x90, 0x90, 0x90, 0xE0, // D
 	0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
 	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+}
+
+
+
+
+
+
+
+
+
+//Opcode instructions
+
+
+//Clears display
+void Chip8::CLS_00E0() {
+    memset(display, 0, sizeof(display));
+}
+
+//Returns from a subroutine
+void Chip8::RET_00EE() {
+    --stackPointer;
+    programCounter = stack[stackPointer];
+}
+
+//Jumps to new address without adding to stack
+void Chip8::JUMP_1NNN() {
+    uint16_t newAddress = opcode & 0x0FFFu;
+    programCounter = newAddress;
+}
+
+//Jumps to new address, adding to stack to be able to refer back to original line
+void Chip8::CALL_2NNN() {
+    stack[stackPointer] = programCounter;
+    ++stackPointer;
+
+    uint16_t newAddress = opcode & 0x0FFFu;
+    programCounter = newAddress;
+}
+
+//Skips next instruction if value of "x" is equal to value of "kk"
+void Chip8::SE_3XKK() {
+    int x = (opcode & 0x0F00u) >> 8u;
+    int kk = opcode & 0x00FF;
+
+    if (x == kk) {
+        programCounter += 2;
+    }
 }
