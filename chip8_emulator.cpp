@@ -5,7 +5,7 @@ class Chip8 {
     public:
         uint8_t registers[16]{}; //The registers with which the CPU will perform its operations
         uint8_t memory[4096]{}; //4kb of memory for the computer
-        uint16_t indexRegister{}; //The register for memory spaces for operations performed by the CPU
+        uint16_t indexRegister{}; //The register for memory space addresses for operations performed by the CPU
         uint16_t programCounter{}; //The register for the ADDRESS of the next instruction
 
         uint16_t stack[16]{}; //The stack of memory instructions to return to upon RET calls
@@ -76,7 +76,7 @@ Chip8::Chip8()
 
     programCounter = START_ADDRESS;
 
-    for (int i = 0; i < sizeof(FONTSET); ++i) {
+    for (unsigned int i = 0; i < sizeof(FONTSET); ++i) {
         memory[FONT_ADDRESS + i] = FONTSET[i];
     }
 
@@ -136,13 +136,13 @@ void Chip8::RET_00EE() {
 }
 
 //Jumps to new address without adding to stack
-void Chip8::JUMP_1NNN() {
+void Chip8::JUMP_1nnn() {
     uint16_t newAddress = opcode & 0x0FFFu;
     programCounter = newAddress;
 }
 
 //Jumps to new address, adding to stack to be able to refer back to original line
-void Chip8::CALL_2NNN() {
+void Chip8::CALL_2nnn() {
     stack[stackPointer] = programCounter;
     ++stackPointer;
 
@@ -150,12 +150,215 @@ void Chip8::CALL_2NNN() {
     programCounter = newAddress;
 }
 
-//Skips next instruction if value of "x" is equal to value of "kk"
-void Chip8::SE_3XKK() {
-    int x = (opcode & 0x0F00u) >> 8u;
-    int kk = opcode & 0x00FF;
+//Skips next instruction if value in xth register is equal to value of "kk"
+void Chip8::SE_3xkk() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t kk = opcode & 0x00FF;
 
-    if (x == kk) {
+    if (registers[x] == kk) {
         programCounter += 2;
+    }
+}
+
+//Skips next instruction if value in xth register is NOT equal to value of "kk"
+void Chip8::SNE_4xkk() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t kk = opcode & 0x00FF;
+
+    if (registers[x] != kk) {
+        programCounter += 2;
+    }
+}
+
+//Skips next instruction if value in xth register is equal to value in yth register
+void Chip8::SE_5xy0() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    if (registers[x] == registers[y]) {
+        programCounter += 2;
+    }
+}
+
+//Sets value at xth register to kk
+void Chip8::LD_6xkk() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t kk = opcode & 0x00FF;
+
+    registers[x] = kk;
+}
+
+//Adds kk to value at xth register
+void Chip8::ADD_7xkk() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t kk = opcode & 0x00FF;
+
+    registers[x] += kk;
+}
+
+//Sets value at xth register to value at yth register
+void Chip8::LD_8xy0() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    registers[x] = registers[y];
+}
+
+//Sets value at xth register to bitwise OR between xth register and yth register values
+void Chip8::OR_8xy1() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    registers[x] |= registers[y];
+}
+
+//Sets value at xth register to bitwise AND between xth register and yth register values
+void Chip8::AND_8xy2() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    registers[x] &= registers[y];
+}
+
+//Sets value at xth register to bitwise XOR between xth register and yth register values
+void Chip8::XOR_8xy3() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    registers[x] &= registers[y];
+}
+
+//Adds value at yth register to xth register, marking overflow register as 1 if the value 
+//overflows (is greater than 8 bits)
+void Chip8::ADD_8xy4() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    uint8_t valX = registers[x];
+    uint8_t valY = registers[y];
+
+    uint8_t sum = valX + valY;
+    registers[x] = sum & 0x00FFu;
+
+    if (sum > 0x00FFu) {
+        registers[sizeof(registers) - 1] = 1;
+    }
+    else {
+        registers[sizeof(registers) - 1] = 0;
+    }
+}
+
+//Subtracts value at yth register from xth register, marking overflow register as 1 if the value
+//does NOT borrow (is NOT negative or 0)
+void Chip8::SUB_8xy5() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    uint8_t valX = registers[x];
+    uint8_t valY = registers[y];
+
+    uint8_t sum = valX - valY;
+    registers[x] = sum;
+
+    if (valX > valY) {
+        registers[sizeof(registers) - 1] = 1;
+    }
+    else {
+        registers[sizeof(registers) - 1] = 0;
+    }
+}
+
+//Divides value at xth register by 2 and sets overflow register to 1 if there is a decimal
+//at the end (last digit before division is 1). Shifting bits to the right is equivalent to
+//division by 2
+void Chip8::SHR_8xy6() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t valX = registers[x];
+
+    registers[sizeof(registers) - 1] = valX & 0x01u;
+    
+    registers[x] >>= 1;
+}
+
+//Subtracts value at xth register from yth register and sets it in xth register,
+//marking overflow register as 1 if the value does NOT borrow (is NOT negative or 0)
+void Chip8::SUB_8xy7() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    uint8_t valX = registers[x];
+    uint8_t valY = registers[y];
+
+    uint8_t sum = valX=Y - valX;
+    registers[x] = sum;
+
+    if (valY > valX) {
+        registers[sizeof(registers) - 1] = 1;
+    }
+    else {
+        registers[sizeof(registers) - 1] = 0;
+    }
+}
+
+//Multiplies value at xth register by 2 and sets overflow register to 1 if there is an
+//overflow (first digit before multiplication is 1). Shifting bits to the left is equivalent to
+//multiplication by 2
+void Chip8::SHL_8xy7() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t valX = registers[x];
+
+    registers[sizeof(registers) - 1] = (valX & 0x80u) >> 7;
+    
+    registers[x] <<= 1;
+}
+
+//Skips next instruction if value at xth register and yth registers are NOT equal
+void Chip8::SNE_9xy0() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+
+    uint8_t valX = registers[x];
+    uint8_t valY = registers[y];
+
+    if (valX != valY) {
+        programCounter += 2;
+    }
+}
+
+//Sets value of index register equal to given address nnn
+void Chip8::LD_Annn() {
+    uint16_t address = opcode & 0x0FFFu;
+    indexRegister = address;
+}
+
+//Jumps to address nnn + value at 1st register
+void Chip8::JP_Bnnn() {
+    uint16_t address = opcode & 0x0FFFu;
+    programCounter = address + registers[0];
+}
+
+//Sets xth register to bitwise AND of random number and kk
+void Chip8::RND_Cxkk() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t kk = opcode & 0x00FFu;
+
+    registers[x] = randByte(randGen) & kk;
+}
+
+//Draws sprite given by memory location saved in index register
+//Draws this sprite at position (x, y) in display
+//Then sets overflow register to 1 if sprite has collided with another sprite
+//We know the sprite's width will be 8 pixels, but not height, which is what n stands for
+void Chip8::DRW_Dxyn() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t y = (opcode & 0x00F0u) >> 4u;
+    uint8_t height = (opcode & 0x000Fu);
+
+    for (unsigned int i = 0; i < height; i++) {
+
+        uint8_t spriteRow = memory[indexRegister + i];
+
+        for (unsigned int j = 0; j < )
+
     }
 }
