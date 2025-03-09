@@ -1,4 +1,8 @@
 #include <cstdint>
+
+const unsigned int VIDEO_WIDTH = 64;
+const unsigned int VIDEO_HEIGHT = 32;
+
 //The Chip8 computer and its specifications
 class Chip8 {
 
@@ -16,7 +20,7 @@ class Chip8 {
 
         uint8_t keys{}; //The key to input mappings
         
-        uint32_t display[64 * 32]{}; //Current pixel display values
+        uint32_t display[VIDEO_WIDTH * VIDEO_HEIGHT]{}; //Current pixel display values
 
         uint16_t opcode; //The actual instruction we are currently looking at
 
@@ -71,12 +75,12 @@ void Chip8::loadROM(char const* fileName) {
 //which is where the memory where the program is stored starts
 Chip8::Chip8()
     : randGen(std::chrono::system_clock::now().time_since_epoch().count()),
-      randByte(std::uniform_int_distribution<uint8_t>(0, 255U))
+      randByte(std::uniform_int_distribution<uint8_t>(0, 255U)) //Apparently this is better for declaring vars in the constructor because it handles errors better and does default constructor
 {
 
     programCounter = START_ADDRESS;
 
-    for (unsigned int i = 0; i < sizeof(FONTSET); ++i) {
+    for (unsigned int i = 0; i < sizeof(FONTSET); ++i) { //In for loops, ++i or i++ work, but conventionally ++i is used because if you set a variable as i++, it sets the variable first THEN increments i, so good practice to do ++i
         memory[FONT_ADDRESS + i] = FONTSET[i];
     }
 
@@ -137,7 +141,7 @@ void Chip8::RET_00EE() {
 
 //Jumps to new address without adding to stack
 void Chip8::JUMP_1nnn() {
-    uint16_t newAddress = opcode & 0x0FFFu;
+    uint16_t newAddress = opcode & 0x0FFFu; //Smart way of getting specific bit substrings you want to check out of an integer
     programCounter = newAddress;
 }
 
@@ -346,7 +350,7 @@ void Chip8::RND_Cxkk() {
 }
 
 //Draws sprite given by memory location saved in index register
-//Draws this sprite at position (x, y) in display
+//Draws this sprite at position (x, y) in display, using register x and y
 //Then sets overflow register to 1 if sprite has collided with another sprite
 //We know the sprite's width will be 8 pixels, but not height, which is what n stands for
 void Chip8::DRW_Dxyn() {
@@ -354,11 +358,135 @@ void Chip8::DRW_Dxyn() {
     uint8_t y = (opcode & 0x00F0u) >> 4u;
     uint8_t height = (opcode & 0x000Fu);
 
-    for (unsigned int i = 0; i < height; i++) {
+    uint8_t xDisplay = registers[x] % VIDEO_WIDTH; //Can overflow beyond screen size so we wrap around
+    uint8_t yDisplay = registers[y] % VIDEO_HEIGHT;
+
+    for (unsigned int i = 0; i < height; ++i) {
 
         uint8_t spriteRow = memory[indexRegister + i];
 
-        for (unsigned int j = 0; j < )
+        for (unsigned int j = 0; j < 8; ++j) {
 
+            uint8_t spritePixel = (spriteRow >> j) & 0x01u;
+            uint32_t* screenPixel = &display[(xDisplay + i) * VIDEO_WIDTH + (yDisplay + j)] //I was confused by this line at first. This method is probably marginally more efficient than just referencing the value in the array again and again?
+
+            if (spritePixel) {
+
+                if (*screenPixel == 0xFFFFFFFF) {
+                    registers[sizeof(registers) - 1] = 1;
+                }
+
+                *screenPixel ^= 0xFFFFFFFF;
+
+            }
+
+        }
+
+    }
+}
+
+//Skip next instruction if key with value at xth register is pressed
+void Chip8::SKP_Ex9E() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    uint8_t key = registers[x];
+
+    if (keys[key]) {
+        programCounter += 2;
+    }
+}
+
+//Skip next instruction if key with value at xth register is NOT pressed
+void Chip8::SKNP_ExA1() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    uint8_t key = registers[x];
+
+    if (!keys[key]) {
+        programCounter += 2;
+    }
+}
+
+//Set xth register to the value of the delay timer
+void Chip8::LD_Fx07() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    registers[x] = delayTimer;
+}
+
+//Wait until a key is pressed, then store the key value in the xth register
+//We do a "wait" by repeatedly moving the program counter back 2, which keeps it on the
+//same instruction
+void Chip8::LD_Fx07() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    for (int i = 0; i < sizeof(keys); ++i) { //Not sure if more efficient than simple if else statements but was a lot easier to write
+        if (keys[i]) {
+            register[x] = i;
+            return;
+        }
+    }
+
+    programCounter -= 2;
+}
+
+//Set delay timer to the value of the xth register
+void Chip8::LD_Fx15() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    delayTimer = registers[x];
+}
+
+//Set sound timer to the value of the xth register
+void Chip8::LD_Fx18() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    soundTimer = registers[x];
+}
+
+//Add xth register value to index register
+void Chip8::ADD_Fx1E() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    indexRegister += registers[x];
+}
+
+//Set index register to location of ith font sprite, i being value from xth register
+void Chip8::LD_Fx29() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    indexRegister = FONTSET[FONT_ADDRESS + 5 * registers[x]];
+}
+
+//Stores BCD (binary coded decimal) value of xth register in index register, index + 1, index + 2
+//index register = hundreds digit, index + 1 = tens digit, index + 2 = ones digit
+void Chip8::LD_Fx33() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+    uint8_t value = registers[x];
+
+    memory[indexRegister + 2] = value % 10;
+    value /= 10;
+
+    memory[indexRegister + 1] = value % 10;
+    value /= 10;
+
+    memory[indexRegister] = value % 10;
+}
+
+//Store values from 0th to xth registers in memory starting from index register
+void Chip8::LD_Fx55() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    for (uint8_t i = 0; i <= x; ++i) {
+        memory[indexRegister + i] = registers[i];
+    }
+}
+
+//Read values from 0th to xth registers in memory starting from index register, and store in registers
+void Chip8::LD_Fx55() {
+    uint8_t x = (opcode & 0x0F00u) >> 8u;
+
+    for (uint8_t i = 0; i <= x; ++i) {
+        registers[i] = memory[indexRegister + i];
     }
 }
