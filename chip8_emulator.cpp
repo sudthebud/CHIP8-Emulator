@@ -71,8 +71,10 @@ void Chip8::loadROM(char const* fileName) {
 #include <chrono>
 #include <random>
 
-//CHIP8 constructor which sets the program counter register to the first instruction address,
-//which is where the memory where the program is stored starts
+//CHIP8 constructor which:
+//-Sets the program counter register to the first instruction address, which is where the memory where the program is stored starts
+//-Sets the random number generator and distribution
+//-Creates the table of opcode to function mappings
 Chip8::Chip8()
     : randGen(std::chrono::system_clock::now().time_since_epoch().count()),
       randByte(std::uniform_int_distribution<uint8_t>(0, 255U)) //Apparently this is better for declaring vars in the constructor because it handles errors better and does default constructor
@@ -84,6 +86,98 @@ Chip8::Chip8()
         memory[FONT_ADDRESS + i] = FONTSET[i];
     }
 
+
+    //Why is this the best strategy for mapping opcodes to functions? We could have a
+    //set of if statements or a switch statement but that would be unweildy for a program
+    //with many opcodes. Instead, we have a table that we can easily input the opcode
+    //into and have it spit out a pointer reference to the function, which we will use to
+    //call the function. Why not have one giant table that goes from 0x0000 to 0xFF55?
+    //Because that would be an array that has thousands of spaces, most of which would be
+    //empty. This strategy allows us to input an opcode into a table that is a manageable size,
+    //with the downside that we reference another set of tables to get more specific for certain
+    //opcodes which require more bits to check which distinct opcode it is.
+
+    //Based on first digit
+    table[0x0] = &Chip8::Table0;
+    table[0x1] = &Chip8::JUMP_1nnn;
+    table[0x2] = &Chip8::CALL_2nnn;
+    table[0x3] = &Chip8::SE_3xkk;
+    table[0x4] = &Chip8::SNE_4xkk;
+    table[0x5] = &Chip8::SE_5xy0;
+    table[0x6] = &Chip8::LD_6xkk;
+    table[0x7] = &Chip8::ADD_7xkk;
+    table[0x8] = &Chip8::Table8;
+    table[0x9] = &Chip8::SNE_9xy0;
+    table[0xA] = &Chip8::LD_Annn;
+    table[0xB] = &Chip8::JP_Bnnn;
+    table[0xC] = &Chip8::RND_Cxkk;
+    table[0xD] = &Chip8::DRW_Dxyn;
+    table[0xE] = &Chip8::TableE;
+    table[0xF] = &Chip8::TableF;
+
+    std::fill(table0, table0 + sizeof(table0), &Chip8::OP_NULL);
+    std::fill(table8, table8 + sizeof(table8), &Chip8::OP_NULL);
+    std::fill(tableE, tableE + sizeof(tableE), &Chip8::OP_NULL);
+    std::fill(tableF, tableF + sizeof(tableF), &Chip8::OP_NULL);
+
+    //Based on fourth digit
+    table0[0x0] = &Chip8::CLS_00E0;
+    table0[0xE] = &Chip8::RET_00EE;
+
+    //Based on fourth digit
+    table8[0x0] = &Chip8::LD_8xy0;
+    table8[0x1] = &Chip8::OR_8xy1;
+    table8[0x2] = &Chip8::AND_8xy2;
+    table8[0x3] = &Chip8::XOR_8xy3;
+    table8[0x4] = &Chip8::ADD_8xy4;
+    table8[0x5] = &Chip8::SUB_8xy5;
+    table8[0x6] = &Chip8::SHR_8xy6;
+    table8[0x7] = &Chip8::SUBN_8xy7;
+    table8[0xE] = &Chip8::SHL_8xyE;
+
+    //Based on fourth digit
+    tableE[0x1] = &Chip8::SKP_Ex9E;
+	tableE[0xE] = &Chip8::SKNP_ExA1;
+
+    //Based on third and fourth digit
+    tableF[0x07] = &Chip8::LD_Fx07;
+    tableF[0x0A] = &Chip8::LD_Fx0A;
+    tableF[0x15] = &Chip8::LD_Fx15;
+    tableF[0x18] = &Chip8::LD_Fx18;
+    tableF[0x1E] = &Chip8::ADD_Fx1E;
+    tableF[0x29] = &Chip8::LD_Fx29;
+    tableF[0x33] = &Chip8::LD_Fx33;
+    tableF[0x55] = &Chip8::LD_Fx55;
+    tableF[0x65] = &Chip8::LD_Fx65;
+
+
+    typedef void (Chip8::*Chip8Func)(); //Easy to read way of making function pointers. Chip8Func is a function pointer, and we are making tables of this. This typedef command specifies that this itself is a pointer to a void function, which will be dereferenced upon conversion. Can use this command to create your own type names for readability.
+    Chip8Func table[0xF + 1];
+    Chip8Func table0[0xE + 1];
+	Chip8Func table8[0xE + 1];
+	Chip8Func tableE[0xE + 1];
+	Chip8Func tableF[0x65 + 1];
+
+}
+
+//Calls specific opcode if starting with 0x0
+void Chip8::Table0() {
+    ((*this).*(table0[opcode & 0x000Fu]))(); //Dereferencing both the class instance itself and its function to call it. Guess it may not be necessary but good practice? If there are free functions with the same name
+}
+
+//Calls specific opcode if starting with 0x0
+void Chip8::Table8() {
+    ((*this).*(table8[opcode & 0x000Fu]))();
+}
+
+//Calls specific opcode if starting with 0x0
+void Chip8::TableE() {
+    ((*this).*(tableE[opcode & 0x000Fu]))();
+}
+
+//Calls specific opcode if starting with 0x0
+void Chip8::TableF() {
+    ((*this).*(tableF[opcode & 0x00FFu]))();
 }
 
 
@@ -286,7 +380,7 @@ void Chip8::SHR_8xy6() {
 
 //Subtracts value at xth register from yth register and sets it in xth register,
 //marking overflow register as 1 if the value does NOT borrow (is NOT negative or 0)
-void Chip8::SUB_8xy7() {
+void Chip8::SUBN_8xy7() {
     uint8_t x = (opcode & 0x0F00u) >> 8u;
     uint8_t y = (opcode & 0x00F0u) >> 4u;
 
@@ -307,7 +401,7 @@ void Chip8::SUB_8xy7() {
 //Multiplies value at xth register by 2 and sets overflow register to 1 if there is an
 //overflow (first digit before multiplication is 1). Shifting bits to the left is equivalent to
 //multiplication by 2
-void Chip8::SHL_8xy7() {
+void Chip8::SHL_8xyE() {
     uint8_t x = (opcode & 0x0F00u) >> 8u;
     uint8_t valX = registers[x];
 
@@ -417,7 +511,7 @@ void Chip8::LD_Fx07() {
 //Wait until a key is pressed, then store the key value in the xth register
 //We do a "wait" by repeatedly moving the program counter back 2, which keeps it on the
 //same instruction
-void Chip8::LD_Fx07() {
+void Chip8::LD_Fx0A() {
     uint8_t x = (opcode & 0x0F00u) >> 8u;
 
     for (int i = 0; i < sizeof(keys); ++i) { //Not sure if more efficient than simple if else statements but was a lot easier to write
@@ -483,10 +577,27 @@ void Chip8::LD_Fx55() {
 }
 
 //Read values from 0th to xth registers in memory starting from index register, and store in registers
-void Chip8::LD_Fx55() {
+void Chip8::LD_Fx65() {
     uint8_t x = (opcode & 0x0F00u) >> 8u;
 
     for (uint8_t i = 0; i <= x; ++i) {
         registers[i] = memory[indexRegister + i];
     }
+}
+
+//Null function used for invalid opcodes
+void Chip8::OP_NULL() {}
+
+
+
+
+
+
+
+
+
+//Function that accomplishes everything that occurs within one cycle of the CHIP8 CPU
+
+void Chip8::Cycle() {
+    
 }
