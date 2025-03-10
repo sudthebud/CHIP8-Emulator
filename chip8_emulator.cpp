@@ -597,7 +597,19 @@ void Chip8::OP_NULL() {}
 
 
 //Function that accomplishes everything that occurs within one cycle of the CHIP8 CPU
-
 void Chip8::Cycle() {
-    
+
+    opcode = (memory[programCounter] << 8u) | memory[programCounter + 1]; //Bitwise OR when the first byte is moved 8 spaces left just adds that byte to the next 8 spaces
+
+    programCounter += 2;
+
+    ((*this).*(table[(opcode & 0xF000u) >> 12u]))();
+
+    if (delayTimer > 0) {
+        --delayTimer;
+    }
+    if (soundTimer > 0) {
+        --soundTimer;
+    }
+
 }
