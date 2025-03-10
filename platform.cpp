@@ -12,13 +12,14 @@ class Platform {
         Platform(char const* title, int windowWidth, int windowHeight, int textureWidth, int textureHeight) {
             SDL_Init(SDL_INIT_VIDEO); //Init the SDL library
 
-            window = SDL_CreateWindow(title, 0, 0, windowWidth, windowHeight, SDL_WINDOW_SHOWN);
+            window = SDL_CreateWindow(title, 0, 0, windowWidth, windowHeight, SDL_WINDOW_SHOWN); //Create window
 
-            renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACTIVATED);
+            renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACTIVATED); //Create renderer which renders textures in the window
 
-            texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, textureWidth, textureHeight);
+            texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, textureWidth, textureHeight); //Create texture
         }
 
+        //Destructor method which destroys SDL objects and quits SDL
         ~Platform() { //Destructor method which activates upon destruction of class instance
             SDL_DestroyTexture(texture);
             SDL_DestroyRenderer(renderer);
@@ -26,6 +27,7 @@ class Platform {
             SDL_Quit();
         }
 
+        //Update method which updates the texture and refreshes the renderer
         void Update(void const* buffer, int pitch) {
             SDL_UpdateTexture(texture, nullptr, buffer, pitch);
             SDL_RenderClear(renderer);
@@ -33,6 +35,7 @@ class Platform {
             SDL_RenderPresent(renderer);
         }
 
+        //Method which checks for input and sets keys to 1/0 for down/up press, or quits
         bool ProcessInput(uint8_t* keys) {
 
             bool quit = false;
