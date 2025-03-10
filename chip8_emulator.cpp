@@ -1,8 +1,5 @@
 #include <cstdint>
 
-const unsigned int VIDEO_WIDTH = 64;
-const unsigned int VIDEO_HEIGHT = 32;
-
 //The Chip8 computer and its specifications
 class Chip8 {
 
@@ -20,7 +17,7 @@ class Chip8 {
 
         uint8_t keys{}; //The key to input mappings
         
-        uint32_t display[VIDEO_WIDTH * VIDEO_HEIGHT]{}; //Current pixel display values
+        uint32_t display[64 * 32]{}; //Current pixel display values
 
         uint16_t opcode; //The actual instruction we are currently looking at
 
